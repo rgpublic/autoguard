@@ -36,8 +36,15 @@ jobs:
               run: |
                   cargo build --release --target x86_64-pc-windows-gnu
 
-            - name: Upload EXE
+            - name: Bundle GTK DLLs
+              shell: msys2 {0}
+              run: |
+                  mkdir -p bundle
+                  cp target/x86_64-pc-windows-gnu/release/*.exe bundle/
+                  cp /mingw64/bin/*.dll bundle/
+
+            - name: Upload bundle
               uses: actions/upload-artifact@v4
               with:
-                  name: windows-exe
-                  path: target/x86_64-pc-windows-gnu/release/*.exe
+                  name: windows-bundle
+                  path: bundle
