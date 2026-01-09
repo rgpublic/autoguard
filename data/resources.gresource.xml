@@ -1,0 +1,5 @@
+<gresources>
+    <gresource prefix="/com/autoguard/autoguard">
+        <file>style.css</file>
+    </gresource>
+</gresources>
