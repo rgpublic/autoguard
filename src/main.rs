@@ -1,4 +1,4 @@
-mod aux;
+mod helpers;
 mod actions;
 mod wireguard_config;
 
@@ -13,7 +13,7 @@ fn main() -> glib::ExitCode {
         .build();
 
     app.connect_activate(|app| {
-        aux::load_css();
+        helpers::load_css();
 
         let window = ApplicationWindow::builder()
             .application(app)
