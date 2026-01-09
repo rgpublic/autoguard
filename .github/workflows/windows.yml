@@ -20,7 +20,7 @@ jobs:
                   install: >
                       mingw-w64-x86_64-toolchain
                       mingw-w64-x86_64-gtk4
-                      mingw-w64-x86_64-pkg-config
+                      mingw-w64-x86_64-pkgconf
 
             - name: Add MSYS2 to PATH
               shell: bash
