@@ -21,6 +21,7 @@ jobs:
                       mingw-w64-x86_64-toolchain
                       mingw-w64-x86_64-gtk4
                       mingw-w64-x86_64-pkgconf
+                      mingw-w64-x86_64-rust
                       pkg-config
 
             - name: Add MSYS2 to PATH
