@@ -102,6 +102,10 @@ pub fn update_allowed_ips(state: &AppState) {
 
 }
 
+#[cfg(target_os = "windows")]
+fn restart_network_manager(config_path: &str) {
+}
+
 #[cfg(target_os = "linux")]
 fn restart_network_manager(config_path: &str) {
     let name = Path::new(config_path)
