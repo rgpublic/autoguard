@@ -8,7 +8,7 @@ pub fn load_css() {
         .expect("Failed to register resources");
 
     let provider = CssProvider::new();
-    provider.load_from_resource("/com/example/myapp/style.css");
+    provider.load_from_resource("/com/autoguard/autoguard/style.css");
 
     let display = Display::default().unwrap();
     gtk::style_context_add_provider_for_display(
