@@ -5,13 +5,33 @@ use serde_json::Value;
 use gtk::gdk;
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Button, Box, Label};
+use std::rc::Rc;
 use crate::wireguard_config::{WireguardConfig};
+
+use serde::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AppConfig {
+    pub config_file: String,
+}
+
+impl ::std::default::Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            config_file: "".into(),
+        }
+    }
+}
 
 pub struct AppState {
     pub window: ApplicationWindow,
     pub vbox: Box,
     pub button: Button,
-    pub config_path: String
+}
+
+pub struct DialogState {
+    pub window: gtk::Window,
+    pub file_label: gtk::Label,
 }
 
 fn set_busy_cursor(window: &ApplicationWindow, busy: bool) {
@@ -70,7 +90,8 @@ pub fn update_allowed_ips(state: &AppState) {
     // show busy cursor immediately
     set_busy_cursor(&state.window, true);
 
-    let path_str = expand_home(&state.config_path).to_string_lossy().to_string();
+    let cfg: AppConfig = confy::load("autoguard", None).unwrap();
+    let path_str = expand_home(&cfg.config_file).to_string_lossy().to_string();
 
     // run blocking work later, after GTK repaints
     glib::idle_add_local({
@@ -78,7 +99,6 @@ pub fn update_allowed_ips(state: &AppState) {
         let window_idle = state.window.clone();
         let vbox_idle = state.vbox.clone();
         let button_idle = state.button.clone();
-        let config_path = state.config_path.clone();
 
         move || {
             let result = match fetch_allowed_ips("https://routing.pw6.de/routes.json") {
@@ -86,7 +106,7 @@ pub fn update_allowed_ips(state: &AppState) {
                 Err(e) => Err(format!("Fetch failed: {}", e)),
             };
 
-            restart_network_manager(&config_path);
+            restart_network_manager(&path_str);
 
             set_busy_cursor(&window_idle, false);
 
@@ -145,3 +165,69 @@ fn show_success(vbox: &Box, button: &Button) {
     vbox.remove(button);   // remove the button
     vbox.append(&label);   // add the label
 }
+
+pub fn show_settings_dialog(state: &AppState) {
+    let builder = gtk::Builder::from_resource(
+        "/com/autoguard/autoguard/ui/settings_dialog.ui"
+    );
+
+    let window: gtk::Window = builder.object("settings_window").unwrap();
+
+    window.set_transient_for(Some(&state.window));
+    window.set_modal(true);
+
+    let choose_button: gtk::Button = builder.object("choose_file_button").unwrap();
+    let file_label: gtk::Label = builder.object("file_label").unwrap();
+
+    let dialog_state = Rc::new(DialogState {
+        window: window.clone(),
+        file_label: file_label.clone()
+    });
+
+    let cfg: AppConfig = confy::load("autoguard", None).unwrap();
+    let saved_path = cfg.config_file.clone();
+
+    if !saved_path.is_empty() {
+        file_label.set_label(&saved_path);
+    }
+
+    choose_button.connect_clicked({
+        let dialog_state = dialog_state.clone();
+        move |_| choose_file(&dialog_state)
+    });
+
+    window.present();
+}
+
+pub fn choose_file(state: &DialogState) {
+    let dialog = gtk::FileChooserNative::new(
+        Some("Select a file"),
+        Some(&state.window),
+        gtk::FileChooserAction::Open,
+        Some("Open"),
+        Some("Cancel"),
+    );
+
+    dialog.connect_response({
+        let label = state.file_label.clone();
+        move |dialog, response| {
+            if response == gtk::ResponseType::Accept {
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        let path_str = path.to_string_lossy().to_string();
+                        label.set_label(&path_str);
+
+                        // Save to confy
+                        let mut cfg: AppConfig = confy::load("autoguard", None).unwrap();
+                        cfg.config_file = path_str.clone();
+                        confy::store("autoguard", None, cfg).unwrap();
+                    }
+                }
+            }
+        }
+    });
+
+    dialog.show();
+}
+
+

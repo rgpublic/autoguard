@@ -1,5 +1,7 @@
 <gresources>
     <gresource prefix="/com/autoguard/autoguard">
+        <file>ui/main_window.ui</file>
+        <file>ui/settings_dialog.ui</file>
         <file>style.css</file>
     </gresource>
 </gresources>

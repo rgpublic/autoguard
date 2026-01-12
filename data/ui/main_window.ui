@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+
+  <object class="GtkApplicationWindow" id="main_window">
+    <property name="default-width">450</property>
+    <property name="default-height">300</property>
+    <property name="resizable">false</property>
+    <property name="title">AutoGuard</property>
+
+    <child type="titlebar">
+        <object class="GtkHeaderBar" id="header">
+          <property name="show-title-buttons">true</property>
+
+          <!-- Suppress the default centered title -->
+          <property name="title-widget">
+            <object class="GtkLabel">
+              <property name="label"></property>
+            </object>
+          </property>
+
+          <child type="start">
+            <object class="GtkBox">
+              <property name="orientation">horizontal</property>
+              <property name="hexpand">true</property>
+
+              <child>
+                <object class="GtkLabel" id="title_label">
+                  <property name="label">AutoGuard</property>
+                  <style>
+                    <class name="title"/>
+                  </style>
+                </object>
+              </child>
+            </object>
+          </child>
+
+          <child type="end">
+            <object class="GtkButton" id="configure_button">
+              <property name="icon-name">emblem-system-symbolic</property>
+              <property name="tooltip-text">Configure</property>
+            </object>
+          </child>
+        </object>
+    </child>
+
+    <child>
+      <object class="GtkBox" id="root">
+        <property name="orientation">vertical</property>
+        <property name="spacing">10</property>
+        <property name="margin-start">10</property>
+        <property name="margin-end">10</property>
+        <property name="margin-top">10</property>
+        <property name="margin-bottom">10</property>
+
+        <child>
+          <object class="GtkButton" id="update_button">
+            <property name="label">Update allowed IPs</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

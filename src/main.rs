@@ -3,11 +3,15 @@ mod actions;
 mod wireguard_config;
 
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, HeaderBar, Box as GtkBox, Button, Orientation, Label};
+use gtk::gio;
+use gtk::{Application, ApplicationWindow, Button};
 use gtk::glib;
+use std::env;
 use std::rc::Rc;
+use crate::actions::AppConfig;
 
 fn main() -> glib::ExitCode {
+
     let app = Application::builder()
         .application_id("com.autoguard.autoguard")
         .build();
@@ -15,73 +19,38 @@ fn main() -> glib::ExitCode {
     app.connect_activate(|app| {
         helpers::load_css();
 
-        let window = ApplicationWindow::builder()
-            .application(app)
-            .default_width(450)
-            .default_height(300)
-            .resizable(false)
-            .title("AutoGuard")
-            .build();
+        let res_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/resources.gresource"));
+        let resource = gio::Resource::from_data(&glib::Bytes::from(res_bytes))
+            .expect("Failed to load GResource");
+        gio::resources_register(&resource);
 
-        let header = HeaderBar::new();
-        header.set_show_title_buttons(true);
+        // Load UI from GtkBuilder
+        let builder = gtk::Builder::from_resource("/com/autoguard/autoguard/ui/main_window.ui");
 
-        let empty_label = Label::new(None);
-        header.set_title_widget(Some(&empty_label));
+        let window: ApplicationWindow = builder.object("main_window").unwrap();
+        window.set_application(Some(app));
 
-        // Create a horizontal box that fills the header bar
-        let hbox = gtk::Box::new(Orientation::Horizontal, 0);
-        hbox.set_hexpand(true);
+        let update_button: Button = builder.object("update_button").unwrap();
+        let configure_button: Button = builder.object("configure_button").unwrap();
+        let vbox: gtk::Box = builder.object("root").unwrap();
 
-        // Left‑aligned title
-        let title_label = gtk::Label::new(Some("AutoGuard"));
-        title_label.add_css_class("title");
-        title_label.set_xalign(0.0); // left
-        title_label.set_halign(gtk::Align::Start);
-
-        // Add title to the box
-        hbox.append(&title_label);
-
-        // Add the box to the start of the header bar
-        header.pack_start(&hbox);
-
-
-        header.set_show_title_buttons(true);
-
-        let configure_button = Button::from_icon_name("emblem-system-symbolic");
-        configure_button.set_tooltip_text(Some("Configure"));
-        configure_button.connect_clicked(|_| {
-            eprintln!("Configure clicked!");
-        });
-
-        header.pack_end(&configure_button);
-        window.set_titlebar(Some(&header));
-
-        // Main content
-        let root = GtkBox::new(Orientation::Vertical, 0);
-
-        let vbox = GtkBox::new(Orientation::Vertical, 10);
-        vbox.set_margin_start(10);
-        vbox.set_margin_end(10);
-        vbox.set_margin_top(10);
-        vbox.set_margin_bottom(10);
-
-        let button = Button::with_label("Update allowed IPs");
-        vbox.append(&button);
+        let cfg: AppConfig = confy::load("autoguard", None).unwrap();
 
         let state = Rc::new(actions::AppState {
             window: window.clone(),
             vbox: vbox.clone(),
-            button: button.clone(),
-            config_path: "~/PW6/WireGuard/PW6.conf".to_string(),
+            button: update_button.clone(),
         });
 
-        button.connect_clicked(move |_| {
-            actions::update_allowed_ips(&state)
+        update_button.connect_clicked({
+            let state = state.clone();
+            move |_| actions::update_allowed_ips(&state)
         });
 
-        root.append(&vbox);
-        window.set_child(Some(&root));
+        configure_button.connect_clicked({
+            let state = state.clone();
+            move |_| actions::show_settings_dialog(&state)
+        });
 
         window.present();
     });
