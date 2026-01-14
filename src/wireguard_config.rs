@@ -57,6 +57,13 @@ impl WireguardConfig {
         fs::write(path, out)
     }
 
+    pub fn get_peer_endpoint(&self) -> Option<&str> {
+        self.sections
+            .iter()
+            .find(|sec| sec.name == "Peer")
+            .and_then(|sec| sec.kv.get("Endpoint").map(|s| s.as_str()))
+    }
+
     pub fn set_peer_allowed_ips(&mut self, ips: &str) {
         for sec in &mut self.sections {
             if sec.name == "Peer" {

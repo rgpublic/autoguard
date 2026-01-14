@@ -8,7 +8,6 @@ use gtk::{Application, ApplicationWindow, Button};
 use gtk::glib;
 use std::env;
 use std::rc::Rc;
-use crate::actions::AppConfig;
 
 fn main() -> glib::ExitCode {
 
@@ -33,8 +32,6 @@ fn main() -> glib::ExitCode {
         let update_button: Button = builder.object("update_button").unwrap();
         let configure_button: Button = builder.object("configure_button").unwrap();
         let vbox: gtk::Box = builder.object("root").unwrap();
-
-        let cfg: AppConfig = confy::load("autoguard", None).unwrap();
 
         let state = Rc::new(actions::AppState {
             window: window.clone(),

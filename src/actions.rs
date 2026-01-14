@@ -6,6 +6,7 @@ use gtk::gdk;
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Button, Box, Label};
 use std::rc::Rc;
+use std::net::IpAddr;
 use crate::wireguard_config::{WireguardConfig};
 
 use serde::{Serialize, Deserialize};
@@ -85,6 +86,34 @@ fn fetch_allowed_ips(url: &str) -> Result<String, String> {
     Ok(ips.join(","))
 }
 
+fn extract_domain(endpoint: &str) -> Option<String> {
+    // First split host:port safely (IPv6 included)
+    let host = endpoint
+        .rsplit_once(':')
+        .map(|(h, _)| h.trim_matches(['[', ']'].as_ref()))?;
+
+    // Reject if it's an IP address
+    if host.parse::<IpAddr>().is_ok() {
+        return None;
+    }
+
+    if host.contains('.') && !host.starts_with('.') && !host.ends_with('.') {
+        Some(host.to_string())
+    } else {
+        None
+    }
+}
+
+fn get_autoguard_url(path: &str) -> Result<String,String> {
+    let cfg = WireguardConfig::load(path)
+        .map_err(|e| format!("Failed to read config: {e}"))?;
+
+    let endpoint = cfg.get_peer_endpoint().unwrap();
+    let domain = extract_domain(endpoint).unwrap();
+
+    Ok(format!("https://auto.{}/routes.json",domain))
+}
+
 pub fn update_allowed_ips(state: &AppState) {
 
     // show busy cursor immediately
@@ -92,6 +121,8 @@ pub fn update_allowed_ips(state: &AppState) {
 
     let cfg: AppConfig = confy::load("autoguard", None).unwrap();
     let path_str = expand_home(&cfg.config_file).to_string_lossy().to_string();
+
+    let autoguard_url = get_autoguard_url(&path_str).unwrap();
 
     // run blocking work later, after GTK repaints
     glib::idle_add_local({
@@ -101,12 +132,12 @@ pub fn update_allowed_ips(state: &AppState) {
         let button_idle = state.button.clone();
 
         move || {
-            let result = match fetch_allowed_ips("https://routing.pw6.de/routes.json") {
+            let result = match fetch_allowed_ips(&autoguard_url) {
                 Ok(allowed_ips) => update_peer_allowed_ips(&path_str, &allowed_ips),
                 Err(e) => Err(format!("Fetch failed: {}", e)),
             };
 
-            restart_network_manager(&path_str);
+            update_config(&path_str);
 
             set_busy_cursor(&window_idle, false);
 
@@ -123,11 +154,25 @@ pub fn update_allowed_ips(state: &AppState) {
 }
 
 #[cfg(target_os = "windows")]
-fn restart_network_manager(config_path: &str) {
+fn update_config(config_path: &str) {
+    let path_str = expand_home(config_path).to_string_lossy().to_string();
+
+    let output = Command::new("wireguard")
+        .arg("/installtunnelservice")
+        .arg(path_str)
+        .output();
+
+    if output.status.success() {
+        eprintln!(
+            "wireguard failed (exit code {:?}): {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 #[cfg(target_os = "linux")]
-fn restart_network_manager(config_path: &str) {
+fn update_config(config_path: &str) {
     let name = Path::new(config_path)
         .file_stem()
         .unwrap();
