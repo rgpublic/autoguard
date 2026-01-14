@@ -160,7 +160,8 @@ fn update_config(config_path: &str) {
     let output = Command::new("wireguard")
         .arg("/installtunnelservice")
         .arg(path_str)
-        .output();
+        .output()
+        .unwrap();
 
     if output.status.success() {
         eprintln!(
