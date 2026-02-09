@@ -137,6 +137,7 @@ pub fn update_allowed_ips(state: &AppState) {
                 Err(e) => Err(format!("Fetch failed: {}", e)),
             };
 
+
             update_config(&path_str);
 
             set_busy_cursor(&window_idle, false);
@@ -157,20 +158,19 @@ pub fn update_allowed_ips(state: &AppState) {
 fn update_config(config_path: &str) {
     let path_str = expand_home(config_path).to_string_lossy().to_string();
 
-    let output = Command::new("wireguard")
-        .arg("/installtunnelservice")
-        .arg(path_str)
-        .output()
-        .unwrap();
+    println!("HALLO");
 
-    if output.status.success() {
-        eprintln!(
-            "wireguard failed (exit code {:?}): {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    Command::new("cmd")
+    .args(&["/C", "wireguard", "/uninstalltunnelservice", "PW6"])
+    .output()
+    .unwrap();
+
+    Command::new("cmd")
+    .args(&["/C", "wireguard", "/installtunnelservice", &path_str])
+    .output()
+    .unwrap();
 }
+
 
 #[cfg(target_os = "linux")]
 fn update_config(config_path: &str) {
@@ -198,12 +198,28 @@ fn update_config(config_path: &str) {
 
     if !output.status.success() {
         eprintln!(
-            "nmcli failed (exit code {:?}): {}",
+            "nmcli connection import failed (exit code {:?}): {}",
             output.status.code(),
             String::from_utf8_lossy(&output.stderr)
         );
     }
 
+    let output = Command::new("nmcli")
+        .arg("connection")
+        .arg("modify")
+        .arg(name)
+        .arg("autoconnect")
+        .arg("no")
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        eprintln!(
+            "nmcli connection modify autoconnect failed (exit code {:?}): {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 }
 
 fn show_success(vbox: &Box, button: &Button) {
