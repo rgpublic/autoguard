@@ -156,21 +156,52 @@ pub fn update_allowed_ips(state: &AppState) {
 
 #[cfg(target_os = "windows")]
 fn update_config(config_path: &str) {
-    let path_str = expand_home(config_path).to_string_lossy().to_string();
-
-    println!("HALLO");
 
     Command::new("cmd")
     .args(&["/C", "wireguard", "/uninstalltunnelservice", "PW6"])
     .output()
     .unwrap();
 
+    let _ = wait_for_service_stopped("Wireguard");
+
     Command::new("cmd")
-    .args(&["/C", "wireguard", "/installtunnelservice", &path_str])
+    .args(&["/C", "wireguard", "/installtunnelservice", &config_path])
     .output()
     .unwrap();
 }
 
+#[cfg(target_os = "windows")]
+fn wait_for_service_stopped(service_name: &str) -> io::Result<()> {
+    let sleep_duration = Duration::from_millis(20);
+
+    loop {
+        let output = Command::new("sc")
+            .arg("query")
+            .arg(service_name)
+            .output()?;
+
+        if !output.status.success() {
+            eprintln!("Error running 'sc query'");
+            return Err(io::Error::new(io::ErrorKind::Other, "sc query failed"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        for line in stdout.lines() {
+            if line.trim_start().starts_with("STATE") {
+                if let Some(pos) = line.find(':') {
+                    let status_part = &line[pos+1..].trim();
+
+                    if status_part.starts_with("1") && status_part.contains("STOPPED") {
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        thread::sleep(sleep_duration);
+    }
+}
 
 #[cfg(target_os = "linux")]
 fn update_config(config_path: &str) {
@@ -291,5 +322,3 @@ pub fn choose_file(state: &DialogState) {
 
     dialog.show();
 }
-
-
