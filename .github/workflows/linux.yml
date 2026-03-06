@@ -1,0 +1,35 @@
+name: Build Linux
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GTK4 dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            pkg-config \
+            libgtk-4-dev \
+            libglib2.0-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (release)
+        run: cargo build --release
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binary
+          path: target/release/
