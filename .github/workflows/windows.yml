@@ -47,7 +47,9 @@ jobs:
                   ntldd -R target/x86_64-pc-windows-gnu/release/*.exe \
                       | grep mingw64 \
                       | awk '{print $3}' \
-                      | xargs -I{} cp "$(cygpath -u "{}")" bundle/
+                      | while read dll; do
+                          cp "$(cygpath -u "$dll")" bundle/
+                        done
 
                   # GLib tools (needed for DBus)
                   cp /mingw64/bin/gdbus.exe bundle/
