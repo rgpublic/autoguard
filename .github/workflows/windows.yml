@@ -44,10 +44,10 @@ jobs:
                   cp target/x86_64-pc-windows-gnu/release/*.exe bundle/
 
                   # DLLs
-                  ntldd -R target/x86_64-pc-windows-gnu/release/*.exe \
-                      | grep mingw64 \
-                      | awk '{print $3}' \
-                      | xargs -I{} cp {} bundle/
+                  mingw64-ldd -R target/x86_64-pc-windows-gnu/release/*.exe \
+                    | grep mingw64 \
+                    | awk '{print $3}' \
+                    | xargs -I{} cp {} bundle/
 
                   # GLib tools (needed for DBus)
                   cp /mingw64/bin/gdbus.exe bundle/
