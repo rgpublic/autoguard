@@ -22,6 +22,7 @@ jobs:
                       mingw-w64-x86_64-gtk4
                       mingw-w64-x86_64-pkgconf
                       mingw-w64-x86_64-rust
+                      mingw-w64-x86_64-ntldd
                       pkg-config
 
             - name: Add MSYS2 to PATH
@@ -43,7 +44,10 @@ jobs:
                   cp target/x86_64-pc-windows-gnu/release/*.exe bundle/
 
                   # DLLs
-                  cp /mingw64/bin/*.dll bundle/
+                  ntldd -R target/x86_64-pc-windows-gnu/release/*.exe \
+                      | grep mingw64 \
+                      | awk '{print $3}' \
+                      | xargs -I{} cp {} bundle/
 
                   # GLib tools (needed for DBus)
                   cp /mingw64/bin/gdbus.exe bundle/
