@@ -71,4 +71,11 @@ impl WireguardConfig {
             }
         }
     }
+
+    pub fn get_peer_public_key(&self) -> Option<String> {
+        self.sections
+            .iter()
+            .find(|sec| sec.name == "Peer")       // pick the first [Peer] section
+            .and_then(|sec| sec.kv.get("PublicKey").cloned()) // clone the String
+    }
 }

@@ -161,49 +161,52 @@ pub fn update_allowed_ips(state: &AppState) {
 fn update_config(config_path: &str) {
     use std::process::Command;
 
-    // 1️⃣ Load WireGuard config to find peer public key
+    // Load config
     let cfg = WireguardConfig::load(config_path)
         .expect("Failed to load WireGuard config");
-
     let peer_pubkey = cfg.get_peer_public_key().expect("No peer in config");
 
-    // 2️⃣ Detect running interface (pick the first one, assumes only one)
+    // Detect interface that has our peer
     let iface_output = Command::new("wg")
         .arg("show")
         .arg("interfaces")
         .output()
         .expect("Failed to run wg show interfaces");
-
-    if !iface_output.status.success() {
-        eprintln!("wg show interfaces failed");
-        return;
-    }
-
     let iface_str = String::from_utf8_lossy(&iface_output.stdout);
-    let interface = iface_str.lines().next().expect("No interface found");
 
-    // 3️⃣ Fetch latest AllowedIPs from AutoGuard URL
+    let interfaces: Vec<&str> = iface_str.lines().collect();
+    let mut interface = None;
+    for iface in interfaces {
+        let dump = Command::new("wg")
+            .args(["show", iface, "dump"])
+            .output()
+            .expect("Failed to run wg show dump");
+        let dump_str = String::from_utf8_lossy(&dump.stdout);
+        if dump_str.contains(&peer_pubkey) {
+            interface = Some(iface);
+            break;
+        }
+    }
+    let interface = interface.expect("Could not find matching interface");
+
+    // Fetch latest AllowedIPs
     let autoguard_url = get_autoguard_url(config_path)
         .expect("Failed to get AutoGuard URL");
-
     let allowed_ips = fetch_allowed_ips(&autoguard_url)
         .expect("Failed to fetch allowed IPs");
 
-    // 4️⃣ Update local config file (optional)
+    // Update local config
     update_peer_allowed_ips(config_path, &allowed_ips)
         .expect("Failed to update local config");
 
-    // 5️⃣ Update running interface using wg set
+    // Apply update to running interface
     let output = Command::new("wg")
         .args(["set", interface, "peer", &peer_pubkey, "allowed-ips", &allowed_ips])
         .output()
         .expect("Failed to run wg set");
 
     if !output.status.success() {
-        eprintln!(
-            "wg set failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        eprintln!("wg set failed: {}", String::from_utf8_lossy(&output.stderr));
     }
 }
 
