@@ -162,7 +162,7 @@ fn update_config(config_path: &str) {
     use std::process::Command;
 
     // 1️⃣ Load WireGuard config to find peer public key
-    let cfg = crate::wireguard_config::WireguardConfig::load(config_path)
+    let cfg = WireguardConfig::load(config_path)
         .expect("Failed to load WireGuard config");
 
     let peer_pubkey = cfg.get_peer_public_key().expect("No peer in config");
@@ -183,14 +183,14 @@ fn update_config(config_path: &str) {
     let interface = iface_str.lines().next().expect("No interface found");
 
     // 3️⃣ Fetch latest AllowedIPs from AutoGuard URL
-    let autoguard_url = crate::get_autoguard_url(config_path)
+    let autoguard_url = get_autoguard_url(config_path)
         .expect("Failed to get AutoGuard URL");
 
-    let allowed_ips = crate::fetch_allowed_ips(&autoguard_url)
+    let allowed_ips = fetch_allowed_ips(&autoguard_url)
         .expect("Failed to fetch allowed IPs");
 
     // 4️⃣ Update local config file (optional)
-    crate::update_peer_allowed_ips(config_path, &allowed_ips)
+    update_peer_allowed_ips(config_path, &allowed_ips)
         .expect("Failed to update local config");
 
     // 5️⃣ Update running interface using wg set
