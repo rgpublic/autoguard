@@ -108,8 +108,13 @@ jobs:
             "@executable_path/../Frameworks" \
             $APP_PATH/Contents/MacOS/$APP_NAME
 
-      - name: Upload bundle
+      - name: Create app zip
+        run: |
+            cd bundle
+            zip -r ../AutoGuard.app.zip AutoGuard.app
+
+      - name: Upload app zip
         uses: actions/upload-artifact@v4
         with:
           name: AutoGuard
-          path: bundle/AutoGuard.app
+          path: AutoGuard.app.zip
