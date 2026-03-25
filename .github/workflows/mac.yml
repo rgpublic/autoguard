@@ -1,0 +1,120 @@
+name: Build macOS App (AutoGuard)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Ensure Apple Silicon build (ARM64)
+      - name: Set target
+        run: rustup target add aarch64-apple-darwin
+
+      - name: Install dependencies (GTK4 + tools)
+        run: |
+          brew update
+          brew install gtk4 pkg-config dylibbundler
+
+      - name: Build (release)
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+
+      - name: Create app bundle
+        run: |
+          APP_NAME=AutoGuard
+          BUNDLE_DIR=bundle/$APP_NAME.app
+          CONTENTS=$BUNDLE_DIR/Contents
+
+          mkdir -p $CONTENTS/{MacOS,Resources,Frameworks}
+
+          # Copy binary
+          cp target/aarch64-apple-darwin/release/$APP_NAME \
+             $CONTENTS/MacOS/$APP_NAME
+
+          # Create Info.plist
+          cat > $CONTENTS/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>$APP_NAME</string>
+              <key>CFBundleExecutable</key>
+              <string>$APP_NAME</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.example.$APP_NAME</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Bundle GTK libraries
+        run: |
+          APP_NAME=AutoGuard
+          APP_PATH=bundle/$APP_NAME.app
+          MACOS_DIR=$APP_PATH/Contents/MacOS
+          FRAMEWORKS_DIR=$APP_PATH/Contents/Frameworks
+
+          dylibbundler \
+            -od -b \
+            -x $MACOS_DIR/$APP_NAME \
+            -d $FRAMEWORKS_DIR \
+            -p @executable_path/../Frameworks
+
+      - name: Bundle GTK resources
+        run: |
+          APP_NAME=AutoGuard
+          RES_DIR=bundle/$APP_NAME.app/Contents/Resources
+
+          mkdir -p $RES_DIR/share
+          mkdir -p $RES_DIR/lib
+
+          # Copy GLib schemas
+          cp -r /opt/homebrew/share/glib-2.0 $RES_DIR/share/
+
+          # Copy icons (optional but recommended)
+          cp -r /opt/homebrew/share/icons $RES_DIR/share/ || true
+
+          # Copy locales (optional)
+          cp -r /opt/homebrew/share/locale $RES_DIR/share/ || true
+
+          # GDK Pixbuf loaders
+          cp -r /opt/homebrew/lib/gdk-pixbuf-2.0 $RES_DIR/lib/
+
+          # Compile schemas inside bundle
+          glib-compile-schemas $RES_DIR/share/glib-2.0/schemas
+
+      - name: Fix library paths
+        run: |
+          APP_NAME=AutoGuard
+          APP_PATH=bundle/$APP_NAME.app
+
+          install_name_tool -add_rpath \
+            "@executable_path/../Frameworks" \
+            $APP_PATH/Contents/MacOS/$APP_NAME
+
+      - name: Create archive
+        run: |
+          cd bundle
+          zip -r AutoGuard-macos.zip AutoGuard.app
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-bundle
+          path: bundle/AutoGuard-macos.zip
