@@ -157,6 +157,56 @@ pub fn update_allowed_ips(state: &AppState) {
 
 }
 
+#[cfg(target_os = "macos")]
+fn update_config(config_path: &str) {
+    use std::process::Command;
+
+    // 1️⃣ Load WireGuard config to find peer public key
+    let cfg = crate::wireguard_config::WireguardConfig::load(config_path)
+        .expect("Failed to load WireGuard config");
+
+    let peer_pubkey = cfg.get_peer_public_key().expect("No peer in config");
+
+    // 2️⃣ Detect running interface (pick the first one, assumes only one)
+    let iface_output = Command::new("wg")
+        .arg("show")
+        .arg("interfaces")
+        .output()
+        .expect("Failed to run wg show interfaces");
+
+    if !iface_output.status.success() {
+        eprintln!("wg show interfaces failed");
+        return;
+    }
+
+    let iface_str = String::from_utf8_lossy(&iface_output.stdout);
+    let interface = iface_str.lines().next().expect("No interface found");
+
+    // 3️⃣ Fetch latest AllowedIPs from AutoGuard URL
+    let autoguard_url = crate::get_autoguard_url(config_path)
+        .expect("Failed to get AutoGuard URL");
+
+    let allowed_ips = crate::fetch_allowed_ips(&autoguard_url)
+        .expect("Failed to fetch allowed IPs");
+
+    // 4️⃣ Update local config file (optional)
+    crate::update_peer_allowed_ips(config_path, &allowed_ips)
+        .expect("Failed to update local config");
+
+    // 5️⃣ Update running interface using wg set
+    let output = Command::new("wg")
+        .args(["set", interface, "peer", &peer_pubkey, "allowed-ips", &allowed_ips])
+        .output()
+        .expect("Failed to run wg set");
+
+    if !output.status.success() {
+        eprintln!(
+            "wg set failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn update_config(config_path: &str) {
 
