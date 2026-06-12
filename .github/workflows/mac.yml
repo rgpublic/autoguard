@@ -94,8 +94,12 @@ jobs:
           # Copy locales (optional)
           #cp -r /opt/homebrew/share/locale $RES_DIR/share/ || true
 
-          # GDK Pixbuf loaders
-          cp -r /opt/homebrew/lib/gdk-pixbuf-2.0 $RES_DIR/lib/
+          # GDK Pixbuf loaders - only copy what's needed
+          mkdir -p $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders
+          cp /opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-png.dylib \
+               $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders/ || true
+          cp /opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-jpeg.dylib \
+               $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders/ || true
 
           # Compile schemas inside bundle
           glib-compile-schemas $RES_DIR/share/glib-2.0/schemas
@@ -126,16 +130,20 @@ jobs:
         run: |
           APP_PATH="bundle/AutoGuard.app"
 
+          # Sign all dylibs in parallel
+          find "$APP_PATH/Contents/Frameworks" -name "*.dylib" | \
+            xargs -P8 -I{} codesign --force --options runtime --sign "$SIGNING_IDENTITY" {}
+
           # Sign main binary
           codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
             "$APP_PATH/Contents/MacOS/AutoGuard"
 
-          # Sign the whole bundle (replaces dylibbundler's ad-hoc signatures)
-          codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" \
+          # Sign the bundle itself (no --deep, dylibs already signed)
+          codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
             "$APP_PATH"
-
         env:
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+
 
       - name: Create app zip
         run: |
