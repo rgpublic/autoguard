@@ -8,6 +8,7 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
+    environment: PW6
 
     steps:
       - name: Checkout
@@ -108,13 +109,55 @@ jobs:
             "@executable_path/../Frameworks" \
             $APP_PATH/Contents/MacOS/$APP_NAME
 
+      - name: Import signing certificate
+        run: |
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings build.keychain
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - name: Codesign app
+        run: |
+          APP_PATH="bundle/AutoGuard.app"
+
+          # Sign all dylibs
+          find "$APP_PATH" -type f -name "*.dylib" -exec \
+            codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} \;
+
+          # Sign main binary
+          codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
+            "$APP_PATH/Contents/MacOS/AutoGuard"
+
+          # Sign the whole bundle
+          codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" \
+            "$APP_PATH"
+
+        env:
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+
       - name: Create app zip
         run: |
-            cd bundle
-            zip -r ../AutoGuard.app.zip AutoGuard.app
+          cd bundle
+          zip -r ../AutoGuard.app.zip AutoGuard.app
 
-      - name: Upload app zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: AutoGuard
-          path: AutoGuard.app.zip
+      - name: Notarize app
+        run: |
+          xcrun notarytool submit AutoGuard.app.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+
+      - name: Staple notarization
+        run: |
+          xcrun stapler staple "bundle/AutoGuard.app"
