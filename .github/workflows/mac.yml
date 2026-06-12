@@ -89,10 +89,10 @@ jobs:
           cp -r /opt/homebrew/share/glib-2.0 $RES_DIR/share/
 
           # Copy icons (optional but recommended)
-          cp -r /opt/homebrew/share/icons $RES_DIR/share/ || true
+          #cp -r /opt/homebrew/share/icons $RES_DIR/share/ || true
 
           # Copy locales (optional)
-          cp -r /opt/homebrew/share/locale $RES_DIR/share/ || true
+          #cp -r /opt/homebrew/share/locale $RES_DIR/share/ || true
 
           # GDK Pixbuf loaders
           cp -r /opt/homebrew/lib/gdk-pixbuf-2.0 $RES_DIR/lib/
