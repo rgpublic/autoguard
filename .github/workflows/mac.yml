@@ -128,7 +128,7 @@ jobs:
 
           # Sign all dylibs
           find "$APP_PATH" -type f -name "*.dylib" -exec \
-            codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} \;
+            codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} +
 
           # Sign main binary
           codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
