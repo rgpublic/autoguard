@@ -117,7 +117,7 @@ jobs:
         run: |
           echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
           security create-keychain -p "" build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -A
           security list-keychains -s build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
@@ -126,21 +126,14 @@ jobs:
           CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
+      - name: Disable Spotlight indexing
+        run: |
+          mdutil -i off bundle || true
+
       - name: Codesign app
         run: |
-          APP_PATH="bundle/AutoGuard.app"
-
-          # Sign all dylibs in parallel
-          find "$APP_PATH/Contents/Frameworks" -name "*.dylib" | \
-            xargs -P8 -I{} codesign --force --options runtime --sign "$SIGNING_IDENTITY" {}
-
-          # Sign main binary
-          codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
-            "$APP_PATH/Contents/MacOS/AutoGuard"
-
-          # Sign the bundle itself (no --deep, dylibs already signed)
-          codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
-            "$APP_PATH"
+          codesign --force --options runtime --deep --timestamp=none \
+            --sign "$SIGNING_IDENTITY" "bundle/AutoGuard.app"
         env:
           SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
 
