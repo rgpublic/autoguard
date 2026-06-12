@@ -130,6 +130,30 @@ jobs:
         run: |
           mdutil -i off bundle || true
 
+      - name: Strip unused GTK files
+        run: |
+          APP=bundle/AutoGuard.app/Contents/Resources
+
+          rm -rf $APP/share/locale
+          rm -rf $APP/share/icons
+          rm -rf $APP/share/doc
+          rm -rf $APP/share/man
+
+          rm -rf $APP/lib/gtk-4.0/4.0.0/media
+          rm -rf $APP/lib/gtk-4.0/4.0.0/printbackends
+          rm -rf $APP/lib/gtk-4.0/4.0.0/engines
+          rm -rf $APP/lib/gtk-4.0/4.0.0/loaders
+
+          rm -rf $APP/lib/gdk-4.0/*wayland*
+          rm -rf $APP/lib/gdk-4.0/*x11*
+
+      - name: Debug bundle size
+        run: |
+          echo "File count:"
+          find bundle/AutoGuard.app | wc -l
+          echo "Size:"
+          du -sh bundle/AutoGuard.app
+
       - name: Codesign app
         run: |
           codesign --force --options runtime --deep --timestamp=none \
