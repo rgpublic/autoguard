@@ -126,15 +126,11 @@ jobs:
         run: |
           APP_PATH="bundle/AutoGuard.app"
 
-          # Sign all dylibs
-          find "$APP_PATH" -type f -name "*.dylib" -exec \
-            codesign --force --options runtime --sign "$SIGNING_IDENTITY" {} +
-
           # Sign main binary
           codesign --force --options runtime --sign "$SIGNING_IDENTITY" \
             "$APP_PATH/Contents/MacOS/AutoGuard"
 
-          # Sign the whole bundle
+          # Sign the whole bundle (replaces dylibbundler's ad-hoc signatures)
           codesign --force --deep --options runtime --sign "$SIGNING_IDENTITY" \
             "$APP_PATH"
 
