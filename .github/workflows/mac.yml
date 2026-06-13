@@ -161,23 +161,23 @@ jobs:
           FRAMEWORKS="$APP/Contents/Frameworks"
 
           # Sign main binary
-          codesign --force --options runtime --timestamp=none \
+          codesign -vvv --force --options runtime --timestamp=none \
             --sign "$SIGNING_IDENTITY" "$BIN"
 
           # Sign all dylibs in Frameworks
           find "$FRAMEWORKS" -type f -name "*.dylib" -print0 | while IFS= read -r -d '' f; do
-            codesign --force --options runtime --timestamp=none \
+            codesign -vvv --force --options runtime --timestamp=none \
               --sign "$SIGNING_IDENTITY" "$f"
           done
 
           # Sign gdk-pixbuf loaders (if present)
           find "$APP/Contents/Resources" -type f -name "*.dylib" -print0 | while IFS= read -r -d '' f; do
-            codesign --force --options runtime --timestamp=none \
+            codesign -vvv --force --options runtime --timestamp=none \
               --sign "$SIGNING_IDENTITY" "$f"
           done
 
           # Finally sign the whole app (no --deep)
-          codesign --force --options runtime --timestamp=none \
+          codesign -vvv --force --options runtime --timestamp=none \
             --sign "$SIGNING_IDENTITY" "$APP"
 
         env:
