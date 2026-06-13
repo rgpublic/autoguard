@@ -185,6 +185,9 @@ jobs:
           security default-keychain -s build.keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
+      - name: Install gtimeout
+        run: brew install coreutils
+
       - name: Sign all dylibs individually (debug)
         timeout-minutes: 20
         run: |
