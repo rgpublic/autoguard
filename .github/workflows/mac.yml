@@ -161,3 +161,9 @@ jobs:
 
       - name: Staple notarization
         run: xcrun stapler staple "bundle/AutoGuard.app"
+
+      - name: Upload notarized app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoGuard-macOS
+          path: AutoGuard.app.zip
