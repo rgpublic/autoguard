@@ -1,0 +1,257 @@
+name: Build macOS App (AutoGuard)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    environment: PW6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Ensure Apple Silicon build (ARM64)
+      - name: Set target
+        run: rustup target add aarch64-apple-darwin
+
+      - name: Install dependencies (GTK4 + tools)
+        run: |
+          brew update
+          brew install gtk4 pkg-config dylibbundler
+
+      - name: Build (release)
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/lib/pkgconfig
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+
+      - name: Create app bundle
+        run: |
+          APP_NAME=AutoGuard
+          BUNDLE_DIR=bundle/$APP_NAME.app
+          CONTENTS=$BUNDLE_DIR/Contents
+
+          mkdir -p $CONTENTS/{MacOS,Resources,Frameworks}
+
+          # Copy binary
+          cp target/aarch64-apple-darwin/release/$APP_NAME \
+             $CONTENTS/MacOS/$APP_NAME
+
+          # Create Info.plist
+          cat > $CONTENTS/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>$APP_NAME</string>
+              <key>CFBundleExecutable</key>
+              <string>$APP_NAME</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.example.$APP_NAME</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Bundle GTK libraries
+        run: |
+          APP_NAME=AutoGuard
+          APP_PATH=bundle/$APP_NAME.app
+          MACOS_DIR=$APP_PATH/Contents/MacOS
+          FRAMEWORKS_DIR=$APP_PATH/Contents/Frameworks
+
+          dylibbundler \
+            -od -b \
+            -x $MACOS_DIR/$APP_NAME \
+            -d $FRAMEWORKS_DIR \
+            -p @executable_path/../Frameworks
+
+      - name: Bundle GTK resources
+        run: |
+          APP_NAME=AutoGuard
+          RES_DIR=bundle/$APP_NAME.app/Contents/Resources
+
+          mkdir -p $RES_DIR/share
+          mkdir -p $RES_DIR/lib
+
+          # Copy GLib schemas
+          cp -r /opt/homebrew/share/glib-2.0 $RES_DIR/share/
+
+          # Copy icons (optional but recommended)
+          #cp -r /opt/homebrew/share/icons $RES_DIR/share/ || true
+
+          # Copy locales (optional)
+          #cp -r /opt/homebrew/share/locale $RES_DIR/share/ || true
+
+          # GDK Pixbuf loaders - only copy what's needed
+          mkdir -p $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders
+          cp /opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-png.dylib \
+               $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders/ || true
+          cp /opt/homebrew/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-jpeg.dylib \
+               $RES_DIR/lib/gdk-pixbuf-2.0/2.10.0/loaders/ || true
+
+          # Compile schemas inside bundle
+          glib-compile-schemas $RES_DIR/share/glib-2.0/schemas
+
+      - name: Fix library paths
+        run: |
+          APP_NAME=AutoGuard
+          APP_PATH=bundle/$APP_NAME.app
+
+          install_name_tool -add_rpath \
+            "@executable_path/../Frameworks" \
+            $APP_PATH/Contents/MacOS/$APP_NAME
+
+      - name: Import signing certificate
+        run: |
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -A
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+
+      - name: Fix keychain permissions for codesign
+        run: |
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Disable Spotlight indexing
+        run: |
+          mdutil -i off bundle || true
+
+      - name: Strip unused GTK files
+        run: |
+          APP=bundle/AutoGuard.app/Contents/Resources
+
+          rm -rf $APP/share/locale
+          rm -rf $APP/share/icons
+          rm -rf $APP/share/doc
+          rm -rf $APP/share/man
+
+          rm -rf $APP/lib/gtk-4.0/4.0.0/media
+          rm -rf $APP/lib/gtk-4.0/4.0.0/printbackends
+          rm -rf $APP/lib/gtk-4.0/4.0.0/engines
+          rm -rf $APP/lib/gtk-4.0/4.0.0/loaders
+
+          rm -rf $APP/lib/gdk-4.0/*wayland*
+          rm -rf $APP/lib/gdk-4.0/*x11*
+
+      - name: Debug bundle size
+        run: |
+          echo "File count:"
+          find bundle/AutoGuard.app | wc -l
+          echo "Size:"
+          du -sh bundle/AutoGuard.app
+
+      - name: Remove extended attributes
+        run: xattr -cr bundle/AutoGuard.app || true
+
+      - name: Check for broken symlinks
+        run: |
+          echo "Broken symlinks:"
+          find bundle/AutoGuard.app -type l ! -exec test -e {} \; -print || true
+
+      - name: Debug identities
+        run: security find-identity -v
+
+      - name: Unlock keychain again
+        run: |
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+
+      - name: Show keychains
+        run: security list-keychains
+
+      - name: Ensure codesign can access the key
+        run: |
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      - name: Install gtimeout
+        run: brew install coreutils
+
+      - name: Sign all dylibs individually (debug)
+        timeout-minutes: 20
+        run: |
+          APP="bundle/AutoGuard.app"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+
+          echo "Signing individual dylibs with timeout…"
+
+          find "$FRAMEWORKS" -type f -name "*.dylib" | while read f; do
+            echo ">>> Attempting to sign: $f"
+            if ! gtimeout 10 codesign --force --options runtime \
+              --sign "$SIGNING_IDENTITY" -vvvvv "$f" 2>&1; then
+              echo "!!! TIMEOUT or FAILURE signing: $f"
+            else
+              echo "✓ Signed: $f"
+            fi
+          done
+        env:
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+
+      - name: Codesign app (verbose)
+        timeout-minutes: 20
+        run: |
+          echo "Final codesign…"
+          codesign --force --options runtime \
+            --sign "$SIGNING_IDENTITY" -vvvvv \
+            "bundle/AutoGuard.app" 2>&1 | tee codesign-final.log
+        env:
+          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
+
+
+      - name: Create app zip
+        run: |
+          cd bundle
+          zip -r ../AutoGuard.app.zip AutoGuard.app
+
+      - name: Notarize app
+        id: notarize
+        run: |
+          xcrun notarytool submit AutoGuard.app.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait \
+            --output-format json > notarization.json
+
+          echo "id=$(jq -r '.id' notarization.json)" >> $GITHUB_OUTPUT
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+
+      - name: Fetch notarization log
+        run: |
+          echo "Fetching log for ID: ${{ steps.notarize.outputs.id }}"
+          xcrun notarytool log "${{ steps.notarize.outputs.id }}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID"
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+
+      - name: Staple notarization
+        run: |
+          xcrun stapler staple "bundle/AutoGuard.app"
