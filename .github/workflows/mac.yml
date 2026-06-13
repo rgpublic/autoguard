@@ -198,7 +198,7 @@ jobs:
 
           find "$FRAMEWORKS" -type f -name "*.dylib" | while read f; do
             echo ">>> Attempting to sign: $f"
-            if ! gtimeout 10 codesign --force --options runtime --timestamp=none \
+            if ! gtimeout 10 codesign --force --options runtime \
               --sign "$SIGNING_IDENTITY" -vvvvv "$f" 2>&1; then
               echo "!!! TIMEOUT or FAILURE signing: $f"
             else
@@ -212,7 +212,7 @@ jobs:
         timeout-minutes: 20
         run: |
           echo "Final codesign…"
-          codesign --force --options runtime --timestamp=none \
+          codesign --force --options runtime \
             --sign "$SIGNING_IDENTITY" -vvvvv \
             "bundle/AutoGuard.app" 2>&1 | tee codesign-final.log
         env:
