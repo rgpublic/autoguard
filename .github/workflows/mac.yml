@@ -126,6 +126,10 @@ jobs:
           CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
 
+      - name: Fix keychain permissions for codesign
+        run: |
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
       - name: Disable Spotlight indexing
         run: |
           mdutil -i off bundle || true
@@ -173,24 +177,13 @@ jobs:
       - name: Show keychains
         run: security list-keychains
 
-      - name: Sign all dylibs individually (debug)
-        timeout-minutes: 20
+      - name: Ensure codesign can access the key
         run: |
-          APP="bundle/AutoGuard.app"
-          FRAMEWORKS="$APP/Contents/Frameworks"
-
-          echo "Signing individual dylibs…"
-
-          find "$FRAMEWORKS" -type f -name "*.dylib" | while read f; do
-            echo "Signing: $f"
-            codesign --force --options runtime --timestamp=none \
-              --sign "$SIGNING_IDENTITY" -vvvvv "$f"
-          done
-        env:
-          SIGNING_IDENTITY: ${{ secrets.SIGNING_IDENTITY }}
-
-      - name: Install gtimeout
-        run: brew install coreutils
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+          security list-keychains -s build.keychain
+          security default-keychain -s build.keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
       - name: Sign all dylibs individually (debug)
         timeout-minutes: 20
