@@ -162,6 +162,17 @@ jobs:
           echo "Broken symlinks:"
           find bundle/AutoGuard.app -type l ! -exec test -e {} \; -print || true
 
+      - name: Debug identities
+        run: security find-identity -v
+
+      - name: Unlock keychain again
+        run: |
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -lut 7200 build.keychain
+
+      - name: Show keychains
+        run: security list-keychains
+
       - name: Sign all dylibs individually (debug)
         timeout-minutes: 20
         run: |
